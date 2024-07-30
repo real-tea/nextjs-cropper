@@ -2,15 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 
 const ImageCropper = ({ imageUrl, onCrop }) => {
   const [cropArea, setCropArea] = useState(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageDimensions, setImageDimensions] = useState({
-    width: 0,
-    height: 0,
-  });
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0 });
   const [resizeDirection, setResizeDirection] = useState("");
   const imageRef = useRef(null);
   const containerRef = useRef(null);
@@ -19,18 +13,14 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
   useEffect(() => {
     const image = new Image();
     image.onload = () => {
-      setImageLoaded(true);
-      setImageDimensions({ width: image.width, height: image.height });
+      initializeCropArea();
     };
     image.src = imageUrl;
   }, [imageUrl]);
 
   const initializeCropArea = () => {
     const containerRect = containerRef.current.getBoundingClientRect();
-    const isMobile = window.innerWidth <= 768;
-    const size = isMobile
-      ? Math.min(containerRect.width, containerRect.height, 300)
-      : Math.min(containerRect.width, containerRect.height, 400) / 2;
+    const size = Math.min(containerRect.width, containerRect.height, 300) / 2;
     setCropArea({
       x: (containerRect.width - size) / 2,
       y: (containerRect.height - size) / 2,
@@ -41,10 +31,7 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
 
   const handleMouseDown = (e) => {
     e.preventDefault();
-    if (!cropArea) {
-      initializeCropArea();
-      return;
-    }
+    if (!cropArea) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -55,23 +42,15 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
   const handleMouseMove = (e) => {
     e.preventDefault();
     if (!cropArea) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
     if (isDragging) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const newX = Math.max(
-        0,
-        Math.min(x - dragStart.x, rect.width - cropArea.width)
-      );
-      const newY = Math.max(
-        0,
-        Math.min(y - dragStart.y, rect.height - cropArea.height)
-      );
+      const newX = Math.max(0, Math.min(x - dragStart.x, rect.width - cropArea.width));
+      const newY = Math.max(0, Math.min(y - dragStart.y, rect.height - cropArea.height));
       setCropArea((prev) => ({ ...prev, x: newX, y: newY }));
     } else if (isResizing) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
       handleResize(x, y);
     }
   };
@@ -83,8 +62,6 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
 
   const handleResizeStart = (direction, e) => {
     e.stopPropagation();
-    const rect = containerRef.current.getBoundingClientRect();
-    setResizeStart({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     setResizeDirection(direction);
     setIsResizing(true);
   };
@@ -94,57 +71,22 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
     let newCropArea = { ...cropArea };
     const rect = containerRef.current.getBoundingClientRect();
 
+    const resizeCorner = (dx, dy) => {
+      newCropArea.width = Math.max(50, Math.min(newCropArea.width + dx, rect.width - newCropArea.x));
+      newCropArea.height = Math.max(50, Math.min(newCropArea.height + dy, rect.height - newCropArea.y));
+      if (resizeDirection.includes('w')) newCropArea.x = Math.min(x, newCropArea.x + newCropArea.width - 50);
+      if (resizeDirection.includes('n')) newCropArea.y = Math.min(y, newCropArea.y + newCropArea.height - 50);
+    };
+
     switch (resizeDirection) {
-      case "se":
-        newCropArea.width = Math.max(
-          50,
-          Math.min(x - cropArea.x, rect.width - cropArea.x)
-        );
-        newCropArea.height = Math.max(
-          50,
-          Math.min(y - cropArea.y, rect.height - cropArea.y)
-        );
-        break;
-      case "sw":
-        newCropArea.width = Math.max(
-          50,
-          Math.min(cropArea.x + cropArea.width - x, cropArea.x + cropArea.width)
-        );
-        newCropArea.height = Math.max(
-          50,
-          Math.min(y - cropArea.y, rect.height - cropArea.y)
-        );
-        newCropArea.x = Math.min(x, cropArea.x + cropArea.width - 50);
-        break;
-      case "ne":
-        newCropArea.width = Math.max(
-          50,
-          Math.min(x - cropArea.x, rect.width - cropArea.x)
-        );
-        newCropArea.height = Math.max(
-          50,
-          Math.min(
-            cropArea.y + cropArea.height - y,
-            cropArea.y + cropArea.height
-          )
-        );
-        newCropArea.y = Math.min(y, cropArea.y + cropArea.height - 50);
-        break;
-      case "nw":
-        newCropArea.width = Math.max(
-          50,
-          Math.min(cropArea.x + cropArea.width - x, cropArea.x + cropArea.width)
-        );
-        newCropArea.height = Math.max(
-          50,
-          Math.min(
-            cropArea.y + cropArea.height - y,
-            cropArea.y + cropArea.height
-          )
-        );
-        newCropArea.x = Math.min(x, cropArea.x + cropArea.width - 50);
-        newCropArea.y = Math.min(y, cropArea.y + cropArea.height - 50);
-        break;
+      case "se": resizeCorner(x - (cropArea.x + cropArea.width), y - (cropArea.y + cropArea.height)); break;
+      case "sw": resizeCorner(cropArea.x - x, y - (cropArea.y + cropArea.height)); break;
+      case "ne": resizeCorner(x - (cropArea.x + cropArea.width), cropArea.y - y); break;
+      case "nw": resizeCorner(cropArea.x - x, cropArea.y - y); break;
+      case "n": newCropArea.height = cropArea.y + cropArea.height - y; newCropArea.y = y; break;
+      case "s": newCropArea.height = y - cropArea.y; break;
+      case "e": newCropArea.width = x - cropArea.x; break;
+      case "w": newCropArea.width = cropArea.x + cropArea.width - x; newCropArea.x = x; break;
     }
 
     setCropArea(newCropArea);
@@ -202,47 +144,66 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
               className="absolute inset-0"
               style={{
                 background: `linear-gradient(to right, 
-      rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.5) ${cropArea.x}px, 
-      transparent ${cropArea.x}px, transparent ${
-                  cropArea.x + cropArea.width
-                }px, 
-      rgba(0,0,0,0.5) ${cropArea.x + cropArea.width}px, rgba(0,0,0,0.5) 100%),
-      linear-gradient(to bottom, 
-      rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.5) ${cropArea.y}px, 
-      transparent ${cropArea.y}px, transparent ${
-                  cropArea.y + cropArea.height
-                }px, 
-      rgba(0,0,0,0.5) ${cropArea.y + cropArea.height}px, rgba(0,0,0,0.5) 100%)`,
+                  rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.5) ${cropArea.x}px, 
+                  transparent ${cropArea.x}px, transparent ${cropArea.x + cropArea.width}px, 
+                  rgba(0,0,0,0.5) ${cropArea.x + cropArea.width}px, rgba(0,0,0,0.5) 100%),
+                  linear-gradient(to bottom, 
+                  rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.5) ${cropArea.y}px, 
+                  transparent ${cropArea.y}px, transparent ${cropArea.y + cropArea.height}px, 
+                  rgba(0,0,0,0.5) ${cropArea.y + cropArea.height}px, rgba(0,0,0,0.5) 100%)`,
                 backgroundRepeat: "no-repeat",
                 backgroundPosition: "0 0, 0 0",
                 backgroundSize: "100% 100%, 100% 100%",
               }}
             />
             <div
-              className="absolute border-2 border-white"
+              className="absolute"
               style={{
                 left: cropArea.x,
                 top: cropArea.y,
                 width: cropArea.width,
                 height: cropArea.height,
+                boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)',
+                border: '2px solid rgba(255, 255, 255, 0.8)',
               }}
             >
-              <div
-                className="absolute bottom-0 right-0 w-4 h-4 bg-white cursor-se-resize"
-                onMouseDown={(e) => handleResizeStart("se", e)}
-              />
-              <div
-                className="absolute bottom-0 left-0 w-4 h-4 bg-white cursor-sw-resize"
-                onMouseDown={(e) => handleResizeStart("sw", e)}
-              />
-              <div
-                className="absolute top-0 right-0 w-4 h-4 bg-white cursor-ne-resize"
-                onMouseDown={(e) => handleResizeStart("ne", e)}
-              />
-              <div
-                className="absolute top-0 left-0 w-4 h-4 bg-white cursor-nw-resize"
-                onMouseDown={(e) => handleResizeStart("nw", e)}
-              />
+              {/* Overlay grid */}
+              <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none">
+                {[...Array(9)].map((_, i) => (
+                  <div key={i} className="border border-white opacity-50" />
+                ))}
+              </div>
+              
+              {/* Corner handles */}
+              {['nw', 'ne', 'se', 'sw'].map((corner) => (
+                <div
+                  key={corner}
+                  className="absolute w-4 h-4 bg-white rounded-full shadow-md cursor-move"
+                  style={{
+                    [corner[0]]: '-6px',
+                    [corner[1]]: '-6px',
+                    cursor: `${corner}-resize`,
+                  }}
+                  onMouseDown={(e) => handleResizeStart(corner, e)}
+                />
+              ))}
+              
+              {/* Edge handles */}
+              {['n', 's', 'e', 'w'].map((edge) => (
+                <div
+                  key={edge}
+                  className="absolute bg-white rounded-full shadow-md cursor-move"
+                  style={{
+                    [edge]: '-4px',
+                    [edge === 'n' || edge === 's' ? 'left' : 'top']: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: edge === 'n' || edge === 's' ? '2rem' : '8px',
+                    height: edge === 'n' || edge === 's' ? '8px' : '2rem',
+                    cursor: `${edge}-resize`,
+                  }}
+                  onMouseDown={(e) => handleResizeStart(edge, e)}
+                />
+              ))}
             </div>
           </>
         )}
