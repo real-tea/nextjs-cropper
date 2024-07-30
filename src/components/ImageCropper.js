@@ -12,9 +12,7 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
 
   useEffect(() => {
     const image = new Image();
-    image.onload = () => {
-      initializeCropArea();
-    };
+    image.onload = initializeCropArea;
     image.src = imageUrl;
   }, [imageUrl]);
 
@@ -39,7 +37,7 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
     };
   };
 
-  const handleStart = (e) => {
+  const handleInteractionStart = (e) => {
     e.preventDefault();
     if (!cropArea) return;
     const { x, y } = getCoordinates(e);
@@ -47,7 +45,7 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
     setDragStart({ x: x - cropArea.x, y: y - cropArea.y });
   };
 
-  const handleMove = (e) => {
+  const handleInteractionMove = (e) => {
     e.preventDefault();
     if (!cropArea) return;
     const { x, y } = getCoordinates(e);
@@ -62,13 +60,15 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
     }
   };
 
-  const handleEnd = () => {
+  const handleInteractionEnd = (e) => {
+    e.preventDefault();
     setIsDragging(false);
     setIsResizing(false);
   };
 
   const handleResizeStart = (direction, e) => {
     e.stopPropagation();
+    e.preventDefault();
     setResizeDirection(direction);
     setIsResizing(true);
   };
@@ -127,19 +127,58 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
     onCrop(croppedImage);
   };
 
+  const renderResizeHandles = () => {
+    const corners = ['nw', 'ne', 'se', 'sw'];
+    const edges = ['n', 's', 'e', 'w'];
+
+    return (
+      <>
+        {corners.map((corner) => (
+          <div
+            key={corner}
+            className="absolute w-6 h-6 bg-white rounded-full shadow-md cursor-move"
+            style={{
+              [corner[0]]: '-8px',
+              [corner[1]]: '-8px',
+              cursor: `${corner}-resize`,
+            }}
+            onMouseDown={(e) => handleResizeStart(corner, e)}
+            onTouchStart={(e) => handleResizeStart(corner, e)}
+          />
+        ))}
+        {edges.map((edge) => (
+          <div
+            key={edge}
+            className="absolute bg-white rounded-full shadow-md cursor-move"
+            style={{
+              [edge]: '-6px',
+              [edge === 'n' || edge === 's' ? 'left' : 'top']: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: edge === 'n' || edge === 's' ? '3rem' : '12px',
+              height: edge === 'n' || edge === 's' ? '12px' : '3rem',
+              cursor: `${edge}-resize`,
+            }}
+            onMouseDown={(e) => handleResizeStart(edge, e)}
+            onTouchStart={(e) => handleResizeStart(edge, e)}
+          />
+        ))}
+      </>
+    );
+  };
+
   return (
     <div className="relative">
       <div
         ref={containerRef}
         className="relative overflow-hidden cursor-crosshair border border-gray-300 rounded-lg"
-        style={{ width: "100%", height: "300px", maxHeight: "80vh" }}
-        onMouseDown={handleStart}
-        onMouseMove={handleMove}
-        onMouseUp={handleEnd}
-        onMouseLeave={handleEnd}
-        onTouchStart={handleStart}
-        onTouchMove={handleMove}
-        onTouchEnd={handleEnd}
+        style={{ width: "100%", height: "300px", maxHeight: "80vh", touchAction: "none" }}
+        onMouseDown={handleInteractionStart}
+        onMouseMove={handleInteractionMove}
+        onMouseUp={handleInteractionEnd}
+        onMouseLeave={handleInteractionEnd}
+        onTouchStart={handleInteractionStart}
+        onTouchMove={handleInteractionMove}
+        onTouchEnd={handleInteractionEnd}
       >
         <img
           ref={imageRef}
@@ -182,37 +221,7 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
                   <div key={i} className="border border-white opacity-50" />
                 ))}
               </div>
-              
-              {['nw', 'ne', 'se', 'sw'].map((corner) => (
-                <div
-                  key={corner}
-                  className="absolute w-6 h-6 bg-white rounded-full shadow-md cursor-move"
-                  style={{
-                    [corner[0]]: '-8px',
-                    [corner[1]]: '-8px',
-                    cursor: `${corner}-resize`,
-                  }}
-                  onMouseDown={(e) => handleResizeStart(corner, e)}
-                  onTouchStart={(e) => handleResizeStart(corner, e)}
-                />
-              ))}
-              
-              {['n', 's', 'e', 'w'].map((edge) => (
-                <div
-                  key={edge}
-                  className="absolute bg-white rounded-full shadow-md cursor-move"
-                  style={{
-                    [edge]: '-6px',
-                    [edge === 'n' || edge === 's' ? 'left' : 'top']: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: edge === 'n' || edge === 's' ? '3rem' : '12px',
-                    height: edge === 'n' || edge === 's' ? '12px' : '3rem',
-                    cursor: `${edge}-resize`,
-                  }}
-                  onMouseDown={(e) => handleResizeStart(edge, e)}
-                  onTouchStart={(e) => handleResizeStart(edge, e)}
-                />
-              ))}
+              {renderResizeHandles()}
             </div>
           </>
         )}
