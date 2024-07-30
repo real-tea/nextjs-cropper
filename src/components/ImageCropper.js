@@ -4,7 +4,11 @@ import React, { useState, useRef, useEffect } from 'react';
 const ImageCropper = ({ imageUrl, onCrop }) => {
   const [cropArea, setCropArea] = useState({ x: 0, y: 0, width: 200, height: 200 });
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const imageRef = useRef(null);
+  const containerRef = useRef(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -12,48 +16,129 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
     if (image) {
       image.onload = () => {
         setImageLoaded(true);
+        setImageDimensions({ width: image.width, height: image.height });
+        initializeCropArea(image.width, image.height);
       };
     }
   }, [imageUrl]);
 
+  const initializeCropArea = (width, height) => {
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+      // Auto crop for mobile
+      const size = Math.min(width, height, 300);
+      setCropArea({
+        x: (width - size) / 2,
+        y: (height - size) / 2,
+        width: size,
+        height: size,
+      });
+    } else {
+      // Default crop area for desktop
+      const size = Math.min(width, height, 400) / 2;
+      setCropArea({
+        x: (width - size) / 2,
+        y: (height - size) / 2,
+        width: size,
+        height: size,
+      });
+    }
+  };
+
   useEffect(() => {
     if (imageLoaded) {
-      const image = imageRef.current;
-      const canvas = canvasRef.current;
-
-      if (image && canvas) {
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(
-            image,
-            cropArea.x,
-            cropArea.y,
-            cropArea.width,
-            cropArea.height,
-            0,
-            0,
-            canvas.width,
-            canvas.height
-          );
-        }
-      }
+      drawImage();
     }
   }, [cropArea, imageLoaded]);
 
+  const drawImage = () => {
+    const image = imageRef.current;
+    const canvas = canvasRef.current;
+    if (image && canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        canvas.width = cropArea.width;
+        canvas.height = cropArea.height;
+        ctx.drawImage(
+          image,
+          cropArea.x,
+          cropArea.y,
+          cropArea.width,
+          cropArea.height,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+      }
+    }
+  };
+
   const handleMouseDown = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    setCropArea({ ...cropArea, x, y });
+    setIsDragging(true);
+    setDragStart({ x: x - cropArea.x, y: y - cropArea.y });
   };
 
   const handleMouseMove = (e) => {
-    if (e.buttons === 1) {
-      const rect = e.currentTarget.getBoundingClientRect();
+    if (isDragging) {
+      const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      setCropArea({ ...cropArea, width: x - cropArea.x, height: y - cropArea.y });
+      const newX = Math.max(0, Math.min(x - dragStart.x, imageDimensions.width - cropArea.width));
+      const newY = Math.max(0, Math.min(y - dragStart.y, imageDimensions.height - cropArea.height));
+      setCropArea(prev => ({ ...prev, x: newX, y: newY }));
     }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleResize = (direction, e) => {
+    e.stopPropagation();
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    let newWidth, newHeight, newX, newY;
+
+    switch (direction) {
+      case 'se':
+        newWidth = x - cropArea.x;
+        newHeight = y - cropArea.y;
+        break;
+      case 'sw':
+        newWidth = cropArea.x + cropArea.width - x;
+        newHeight = y - cropArea.y;
+        newX = x;
+        break;
+      case 'ne':
+        newWidth = x - cropArea.x;
+        newHeight = cropArea.y + cropArea.height - y;
+        newY = y;
+        break;
+      case 'nw':
+        newWidth = cropArea.x + cropArea.width - x;
+        newHeight = cropArea.y + cropArea.height - y;
+        newX = x;
+        newY = y;
+        break;
+    }
+
+    // Ensure minimum size and maximum bounds
+    const minSize = 50;
+    newWidth = Math.max(minSize, Math.min(newWidth, imageDimensions.width - cropArea.x));
+    newHeight = Math.max(minSize, Math.min(newHeight, imageDimensions.height - cropArea.y));
+
+    setCropArea(prev => ({
+      x: newX !== undefined ? newX : prev.x,
+      y: newY !== undefined ? newY : prev.y,
+      width: newWidth,
+      height: newHeight,
+    }));
   };
 
   const handleCrop = () => {
@@ -67,16 +152,18 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
   return (
     <div className="relative">
       <div
-        className="relative overflow-hidden cursor-crosshair border border-gray-300 rounded-lg"
+        ref={containerRef}
+        className="relative overflow-hidden cursor-move border border-gray-300 rounded-lg"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
       >
         <img 
           ref={imageRef} 
           src={imageUrl} 
           alt="Original" 
           className="max-w-full" 
-          onLoad={() => setImageLoaded(true)}
         />
         {imageLoaded && (
           <div
@@ -87,13 +174,16 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
               width: cropArea.width,
               height: cropArea.height,
             }}
-          />
+          >
+            <div className="absolute bottom-0 right-0 w-4 h-4 bg-white cursor-se-resize" onMouseDown={(e) => handleResize('se', e)} />
+            <div className="absolute bottom-0 left-0 w-4 h-4 bg-white cursor-sw-resize" onMouseDown={(e) => handleResize('sw', e)} />
+            <div className="absolute top-0 right-0 w-4 h-4 bg-white cursor-ne-resize" onMouseDown={(e) => handleResize('ne', e)} />
+            <div className="absolute top-0 left-0 w-4 h-4 bg-white cursor-nw-resize" onMouseDown={(e) => handleResize('nw', e)} />
+          </div>
         )}
       </div>
       <canvas
         ref={canvasRef}
-        width={200}
-        height={200}
         className="hidden"
       />
       <div className="mt-4 text-center">
