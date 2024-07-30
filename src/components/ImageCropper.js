@@ -29,22 +29,29 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
     });
   };
 
-  const handleMouseDown = (e) => {
+  const getCoordinates = (event) => {
+    const rect = containerRef.current.getBoundingClientRect();
+    const clientX = event.clientX || (event.touches && event.touches[0].clientX);
+    const clientY = event.clientY || (event.touches && event.touches[0].clientY);
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  };
+
+  const handleStart = (e) => {
     e.preventDefault();
     if (!cropArea) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getCoordinates(e);
     setIsDragging(true);
     setDragStart({ x: x - cropArea.x, y: y - cropArea.y });
   };
 
-  const handleMouseMove = (e) => {
+  const handleMove = (e) => {
     e.preventDefault();
     if (!cropArea) return;
+    const { x, y } = getCoordinates(e);
     const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
 
     if (isDragging) {
       const newX = Math.max(0, Math.min(x - dragStart.x, rect.width - cropArea.width));
@@ -55,7 +62,7 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
     }
   };
 
-  const handleMouseUp = () => {
+  const handleEnd = () => {
     setIsDragging(false);
     setIsResizing(false);
   };
@@ -125,11 +132,14 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
       <div
         ref={containerRef}
         className="relative overflow-hidden cursor-crosshair border border-gray-300 rounded-lg"
-        style={{ width: "100%", height: "400px" }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        style={{ width: "100%", height: "300px", maxHeight: "80vh" }}
+        onMouseDown={handleStart}
+        onMouseMove={handleMove}
+        onMouseUp={handleEnd}
+        onMouseLeave={handleEnd}
+        onTouchStart={handleStart}
+        onTouchMove={handleMove}
+        onTouchEnd={handleEnd}
       >
         <img
           ref={imageRef}
@@ -167,41 +177,40 @@ const ImageCropper = ({ imageUrl, onCrop }) => {
                 border: '2px solid rgba(255, 255, 255, 0.8)',
               }}
             >
-              {/* Overlay grid */}
               <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none">
                 {[...Array(9)].map((_, i) => (
                   <div key={i} className="border border-white opacity-50" />
                 ))}
               </div>
               
-              {/* Corner handles */}
               {['nw', 'ne', 'se', 'sw'].map((corner) => (
                 <div
                   key={corner}
-                  className="absolute w-4 h-4 bg-white rounded-full shadow-md cursor-move"
+                  className="absolute w-6 h-6 bg-white rounded-full shadow-md cursor-move"
                   style={{
-                    [corner[0]]: '-6px',
-                    [corner[1]]: '-6px',
+                    [corner[0]]: '-8px',
+                    [corner[1]]: '-8px',
                     cursor: `${corner}-resize`,
                   }}
                   onMouseDown={(e) => handleResizeStart(corner, e)}
+                  onTouchStart={(e) => handleResizeStart(corner, e)}
                 />
               ))}
               
-              {/* Edge handles */}
               {['n', 's', 'e', 'w'].map((edge) => (
                 <div
                   key={edge}
                   className="absolute bg-white rounded-full shadow-md cursor-move"
                   style={{
-                    [edge]: '-4px',
+                    [edge]: '-6px',
                     [edge === 'n' || edge === 's' ? 'left' : 'top']: '50%',
                     transform: 'translate(-50%, -50%)',
-                    width: edge === 'n' || edge === 's' ? '2rem' : '8px',
-                    height: edge === 'n' || edge === 's' ? '8px' : '2rem',
+                    width: edge === 'n' || edge === 's' ? '3rem' : '12px',
+                    height: edge === 'n' || edge === 's' ? '12px' : '3rem',
                     cursor: `${edge}-resize`,
                   }}
                   onMouseDown={(e) => handleResizeStart(edge, e)}
+                  onTouchStart={(e) => handleResizeStart(edge, e)}
                 />
               ))}
             </div>

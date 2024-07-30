@@ -35,7 +35,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-purple-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">Image Cropper</h1>
+        <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">Image Search</h1>
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="p-6">
             <div className="mb-6 text-center">
